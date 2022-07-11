@@ -2,14 +2,26 @@ FROM ubuntu:22.04
 
 LABEL maintainer="Taylor Otwell"
 
-ARG WWWGROUP
-ARG NODE_VERSION=16
+ARG WWWGROUP=1000
+ARG WWWUSER=1000
+ARG LARAVEL_SAIL=1
+ARG XDEBUG_MODE=off
+ARG XDEBUG_CONFIG='client_host=host.docker.internal'
+
+ARG NODE_VERSION=18
 ARG POSTGRES_VERSION=14
+ARG TZ=Asia/Ho_Chi_Minh
 
 WORKDIR /var/www/html
 
 ENV DEBIAN_FRONTEND noninteractive
-ENV TZ=UTC
+ENV TZ=$TZ
+
+ENV WWWGROUP=$WWWGROUP
+ENV WWWUSER=$WWWUSER
+ENV LARAVEL_SAIL=$LARAVEL_SAIL
+ENV XDEBUG_MODE=$XDEBUG_MODE
+ENV XDEBUG_CONFIG=$XDEBUG_CONFIG
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -43,15 +55,27 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y yarn \
     && apt-get install -y mysql-client \
-    && apt-get install -y postgresql-client-$POSTGRES_VERSION \
-    && apt-get -y autoremove \
+    && apt-get install -y postgresql-client-$POSTGRES_VERSION
+
+# @becagis
+RUN apt-get install -y software-properties-common build-essential \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y python3 python3-pip python3-dev python3-venv \
+    && apt-get install -y python3-gdal gdal-bin libgdal-dev
+
+RUN apt-get install -y iputils-ping net-tools telnet \
+    && apt-get install -y vim micro
+
+# Clean up
+RUN apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.1
 
 RUN groupadd --force -g $WWWGROUP sail
-RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u 1337 sail
+RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u $WWWUSER sail # @becagis
 
 COPY start-container /usr/local/bin/start-container
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
