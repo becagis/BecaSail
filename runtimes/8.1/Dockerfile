@@ -8,7 +8,7 @@ ARG LARAVEL_SAIL=1
 ARG XDEBUG_MODE=off
 ARG XDEBUG_CONFIG='client_host=host.docker.internal'
 
-ARG NODE_VERSION=18
+ARG NODE_VERSION=16
 ARG POSTGRES_VERSION=14
 ARG TZ=Asia/Ho_Chi_Minh
 
@@ -24,6 +24,9 @@ ENV XDEBUG_MODE=$XDEBUG_MODE
 ENV XDEBUG_CONFIG=$XDEBUG_CONFIG
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN groupadd --force -g $WWWGROUP sail
+RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u $WWWUSER sail # @becagis
 
 RUN apt-get update \
     && apt-get install -y gnupg gosu curl ca-certificates zip unzip git supervisor sqlite3 libcap2-bin libpng-dev python2 \
@@ -64,8 +67,18 @@ RUN apt-get install -y software-properties-common build-essential \
     && apt-get install -y python3 python3-pip python3-dev python3-venv \
     && apt-get install -y python3-gdal gdal-bin libgdal-dev
 
-RUN apt-get install -y iputils-ping net-tools telnet \
-    && apt-get install -y vim micro
+RUN apt-get install -y iputils-ping net-tools telnet procps \
+    && apt-get install -y vim micro zsh
+
+USER sail
+
+RUN sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh) --keep-zshrc" \
+    && sh -c "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" \
+    && sed -i 's~plugins=(~plugins=(zsh-autosuggestions ~g' ~/.zshrc \
+    && sh -c "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting"  \
+    && sed -i 's~plugins=(~plugins=(zsh-syntax-highlighting ~g' ~/.zshrc
+
+USER root
 
 # Clean up
 RUN apt-get -y autoremove \
@@ -74,14 +87,13 @@ RUN apt-get -y autoremove \
 
 RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.1
 
-RUN groupadd --force -g $WWWGROUP sail
-RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u $WWWUSER sail # @becagis
-
 COPY start-container /usr/local/bin/start-container
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY php.ini /etc/php/8.1/cli/conf.d/99-sail.ini
 RUN chmod +x /usr/local/bin/start-container
 
 EXPOSE 8000
+EXPOSE 80
+EXPOSE 5173
 
 ENTRYPOINT ["start-container"]
